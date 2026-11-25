@@ -11,17 +11,38 @@
 .
 ├── frontend/                 Vue 3 + Vite + TypeScript 前端
 │   ├── src/views/WorkbenchView.vue|tsx  全部模块共享工作台
+│   ├── src/views/GovernanceView.vue     慢查治理工作台（影响样本/诊断/复跑）
 │   ├── src/data/modules.ts              18个业务模块配置
 │   ├── src/api/              统一请求封装
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
-│   ├── app/routers/resource.py  通用查询/导出/登记/动作接口
+│   ├── app/routers/resource.py    通用查询/导出/登记/动作接口
+│   ├── app/routers/governance.py  慢查治理：影响样本、诊断受理、实际复跑
 │   ├── app/services/<key>.py    每个模块独立领域逻辑
+│   ├── app/services/query_governance.py  慢查口径治理领域服务
 │   ├── app/services/base.py     共享服务骨架
 │   └── app/store.py          内存数据仓库与示例数据
 ├── .gitignore
 └── docker-compose.yml
 ```
+
+## 慢查口径治理
+
+查询日志的每条执行记录都带 `请求标识 + 尝试序号`，同一请求的重试与不同请求各自独立成行，
+并补充 `采用版本`（v1 缓存口径 / v2 实际取数）、`缓存命中`、`口径期间`、`资料状态` 与 `缺失范围`，
+支持按实际执行毫秒数区间、采用版本、是否命中筛选定位慢查。
+
+独立的「慢查治理」工作台（路由 `/query_governance`，接口前缀 `/api/governance`）：
+
+- `GET /slow-history`：慢查历史影响样本，按实际执行时间、采用版本、是否命中、口径期间检索；
+- `GET /metric-decisions`：指标决策数据（口径版本、口径期间、数据来源）；
+- `POST /diagnoses`：按实际选中的执行记录提交诊断，同一批选中记录只受理一次（幂等）；
+- `POST /diagnoses/{id}/rerun`：对诊断追溯的每条执行记录实际复跑，逐次统计真实复跑耗时与返回数据；
+- `POST /diagnoses/{id}/restore/{log_id}`：补回原资料后重新复跑并核对实际领取；
+- `GET /diagnoses/{id}/impact-sample`：可重跑影响样本，关联诊断请求、数据源与历次复跑结果。
+
+已过使用期的旧资料随单受理时必须标清缺失范围，复跑只登记缺失、不产出伪造返回，
+实际诊断不得以新口径值冒充旧值；补回原资料后下一轮复跑才会领取真实返回数据。
 
 ## 启动
 
@@ -65,7 +86,7 @@ npm run dev
 | 查询缓存 | `query_cache` | 缓存策略 | 策略标识、关联查询、缓存键 |
 | 分群对比 | `segment_compare` | 对比方案 | 方案标识、分群A、分群B |
 | 指标校准 | `metric_calibrate` | 校准记录 | 记录标识、校准指标、原口径值 |
-| 查询日志 | `query_log` | 查询记录 | 记录标识、查询内容、查询用户 |
+| 查询日志 | `query_log` | 查询记录 | 记录标识、查询内容、查询用户、请求标识、尝试序号、采用版本、缓存命中、资料状态 |
 | 数据采样 | `data_sample` | 采样配置 | 配置标识、数据来源、采样方法 |
 | 报告调度 | `report_schedule` | 报告任务 | 任务标识、报告内容、接收人 |
 

@@ -12,6 +12,7 @@ from app.config import settings
 from app.routers import ROUTERS
 from app.routers.chains import router as chains_router
 from app.routers.domain import router as domain_router
+from app.routers.governance import router as governance_router
 from app.store import store
 
 app = FastAPI(title="多维指标分析与实验评估平台", version="1.0.0")
@@ -27,7 +28,7 @@ app.add_middleware(
 @app.get("/api/health")
 def health() -> dict[str, object]:
     """健康检查：确认服务已经监听、示例数据已经就绪。"""
-    return {"ok": True, "app": settings.app_name, "modules": len(store.module_names())}
+    return {"ok": True, "app": settings.app_name, "modules": store.business_module_count()}
 
 
 @app.get("/api/overview")
@@ -41,6 +42,9 @@ app.include_router(chains_router)
 
 # 领域业务操作路由
 app.include_router(domain_router)
+
+# 慢查口径治理路由（影响样本、诊断受理、实际复跑）
+app.include_router(governance_router)
 
 # 资源路由含 /api/{module}，必须放在 health / overview 之后注册，
 # 否则固定路径会被动态路径抢先匹配。

@@ -33,6 +33,16 @@
         <span>{{ field }}</span>
         <input v-model="filters[field]" :data-testid="`filter-${field}`" :placeholder="`按${field}检索`" />
       </label>
+      <label v-for="field in durationFilterFields" :key="field" class="filter-item">
+        <span>{{ field }}</span>
+        <input
+          v-model.number="durationFilters[field]"
+          :data-testid="`filter-${field}`"
+          type="number"
+          min="0"
+          :placeholder="field"
+        />
+      </label>
       <button class="btn" data-testid="query" type="submit">查询</button>
       <button class="btn ghost" data-testid="reset" type="button" @click="resetFilters">重置条件</button>
     </form>
@@ -111,7 +121,12 @@ const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = meta.fields.slice(0, 3)
+// 查询日志模块额外支持按实际执行毫秒数区间定位慢查
+const durationFilters = ref<Record<string, number | ''>>({ min_duration_ms: '', max_duration_ms: '' })
+const durationFilterFields = computed(() =>
+  props.moduleKey === 'query_log' ? ['min_duration_ms', 'max_duration_ms'] : [],
+)
+const filterFields = [...meta.fields.slice(0, 3), ...(meta.extraFilters ?? [])]
 const showCreate = ref(false)
 const creating = ref(false)
 const createValues = ref<Record<string, string>>({})
@@ -132,16 +147,21 @@ const statusSummary = computed(() =>
 
 function resetFilters() {
   filters.value = {}
+  durationFilters.value = { min_duration_ms: '', max_duration_ms: '' }
   void reload()
 }
 
 async function exportRows() {
   errorMessage.value = ''
   try {
-    await downloadEntries(meta.key, filters.value)
+    await downloadEntries(meta.key, collectFilters())
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '导出失败'
   }
+}
+
+function collectFilters(): Record<string, string | number> {
+  return { ...filters.value, ...durationFilters.value }
 }
 
 function openCreate() {
@@ -179,7 +199,7 @@ async function runAction(action: string, row: EntryRow) {
 async function reload() {
   errorMessage.value = ''
   try {
-    const payload = await listEntries(meta.key, filters.value)
+    const payload = await listEntries(meta.key, collectFilters())
     rows.value = payload.items
     total.value = payload.total
   } catch (error) {

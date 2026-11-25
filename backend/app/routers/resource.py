@@ -27,6 +27,8 @@ def list_entries(
     request: Request,
     keyword: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    min_duration_ms: int | None = Query(default=None, ge=0),
+    max_duration_ms: int | None = Query(default=None, ge=0),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> PageResult[dict]:
@@ -36,8 +38,12 @@ def list_entries(
         for key, value in request.query_params.items()
         if key in service.LIST_FIELDS and value.strip()
     }
+    # 查询日志支持按实际执行毫秒数做区间定位，其余模块忽略该组参数
+    extra = {}
+    if "min_duration_ms" in service.list_entries.__code__.co_varnames:
+        extra = {"min_duration_ms": min_duration_ms, "max_duration_ms": max_duration_ms}
     items, total = service.list_entries(
-        filters=filters, keyword=keyword, status=status, page=page, size=size)
+        filters=filters, keyword=keyword, status=status, page=page, size=size, **extra)
     return PageResult(items=items, total=total, page=page, size=size)
 
 

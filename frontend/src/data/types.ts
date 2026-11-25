@@ -18,6 +18,8 @@ export type ModuleMeta = {
   actions: string[]
   actionTargets: Record<string, string>
   metrics: string[]
+  // 附加筛选字段：不进表格列，仅在筛选区提供（如查询日志的采用版本、是否命中）
+  extraFilters?: string[]
 }
 
 export type PageResult = {

@@ -305,21 +305,31 @@ def chain_calibrate_governance(calibrate_id: int) -> dict[str, Any]:
             "impact": "需更新返回字段值" if abs(bias["bias_pct"]) > 1 else "偏差小于1%，无需操作",
         })
 
-    # Step 3: 查询日志追溯
-    query_logs = [row for row in store.rows("query_log")][:3]
-    rng = random.Random(calibrate_id)
+    # Step 3: 查询日志追溯——基于真实执行记录与可重跑影响样本，不再随机造数
+    from app.services.query_log import QueryLogService
+    log_service = QueryLogService()
+    query_logs = store.rows("query_log")
     log_analysis = []
     for log in query_logs:
+        duration_ms = log_service.duration_ms_of(log)
         log_analysis.append({
             "log_id": log.get("id"),
+            "记录标识": log.get("记录标识"),
+            "请求标识": log.get("请求标识"),
+            "尝试序号": log.get("尝试序号"),
             "query_user": log.get("查询用户"),
             "query_time": log.get("查询时间"),
-            "duration_ms": rng.randint(10, 5000),
-            "cache_hit": rng.random() > 0.4,
-            "row_count": rng.randint(1, 10000),
+            "duration_ms": duration_ms,
+            "adopted_version": log.get("采用版本"),
+            "metric_period": log.get("口径期间"),
+            "cache_hit": log.get("缓存命中") == "是",
+            "row_count": log.get("返回行数"),
+            "material_status": log.get("资料状态"),
+            "missing_scope": log.get("缺失范围") or "",
         })
 
-    avg_duration = round(sum(item["duration_ms"] for item in log_analysis) / max(len(log_analysis), 1), 2)
+    measured = [item["duration_ms"] for item in log_analysis if item["duration_ms"] >= 0]
+    avg_duration = round(sum(measured) / len(measured), 2) if measured else 0
     return {
         "chain": "口径治理链路",
         "calibration": {
@@ -331,7 +341,12 @@ def chain_calibrate_governance(calibrate_id: int) -> dict[str, Any]:
         "query_log_analysis": {
             "logs": log_analysis,
             "avg_duration_ms": avg_duration,
-            "total_logs": len(store.rows("query_log")),
+            "total_logs": len(query_logs),
+            "expired_material_logs": [
+                {"log_id": item["log_id"], "missing_scope": item["missing_scope"]}
+                for item in log_analysis if item["material_status"] == "已过期"
+            ],
+            "governance_note": "按实际执行记录追溯；过期资料仅登记缺失范围，不得以新口径值冒充旧值",
         },
     }
 

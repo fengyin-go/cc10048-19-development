@@ -177,6 +177,7 @@ export const MODULES: ModuleMeta[] = [
     actions: ["标记慢查", "分析优化"],
     actionTargets: {"标记慢查": "已记录", "分析优化": "慢查询"},
     metrics: ["记录总数", "慢查询数", "平均耗时"],
+    extraFilters: ["请求标识", "尝试序号", "采用版本", "口径期间", "资料状态"],
   },
   {
     key: "data_sample",
